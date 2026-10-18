@@ -1,0 +1,46 @@
+# Build workflow. Started only by workflow_dispatch from the owner's automation.
+# Inputs: a random job id and a sealed grant (opaque to anyone without the repository secret).
+# The console shows step names only; the full log is sealed and uploaded as the single artifact.
+name: build
+run-name: build ${{ inputs.job }}
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job id
+        required: true
+        type: string
+      grant:
+        description: Sealed grant
+        required: true
+        type: string
+permissions: {}
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # Inputs are read from the event file by run.js, not passed through env (env values are echoed into the log).
+      - name: run
+        env:
+          GMCI_INPUT_KEY: ${{ secrets.GMCI_INPUT_KEY }}
+        run: node --no-warnings scripts/run.js
+      - name: upload
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: log
+          path: ${{ runner.temp }}/out/log.gs
+          retention-days: 1
+          if-no-files-found: ignore
